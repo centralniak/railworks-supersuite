@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import os
 import time
 
 import g13
@@ -33,6 +34,20 @@ class Runner(object):
 
         self.startup()
 
+    def launch_macroworks_and_wait(self):
+        print 'Launching MacroWorks...'
+        os.startfile('C://Program Files (x86)//PI Engineering//MacroWorks 3.1//MacroWorks 3 Launch.exe')
+        time.sleep(5)
+
+    def launch_railworks(self):
+        print 'Launching Railworks...'
+        os.system('"C://Program Files (x86)//Steam//steamapps//common//RailWorks//RailWorks.exe" -SetFOV=75')
+
+    def launch_tracking_and_wait(self):
+        print 'Launching FaceTrackNoIR'
+        os.startfile('C://Program Files (x86)//FreeTrack//FaceTrackNoIR.exe')
+        time.sleep(10)
+
     def main(self):
         try:
             while True:
@@ -42,6 +57,9 @@ class Runner(object):
             self.g13.lcd_shutdown()
 
     def startup(self):
+        self.launch_tracking_and_wait()
+        self.launch_macroworks_and_wait()
+        self.launch_railworks()
         self.g13.lcd_init()
 
     def update_g13(self):
