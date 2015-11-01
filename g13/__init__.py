@@ -15,7 +15,7 @@ class LogitechLCD(object):
     lcd_width = None
 
     def __init__(self, lcd_type):
-        dll_location = os.path.join(os.path.dirname(__file__), 'LogitechLcd.dll')
+        dll_location = 'LogitechLcd.dll'
         self.dll = ctypes.cdll.LoadLibrary(dll_location)
 
         self.lcd_type = lcd_type
