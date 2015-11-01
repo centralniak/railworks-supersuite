@@ -3,6 +3,8 @@
 import os
 import time
 
+import psutil
+
 import g13
 import raildriver
 
@@ -34,27 +36,45 @@ class Runner(object):
 
         self.startup()
 
+    def is_railworks_running(self):
+        for process in psutil.process_iter():
+            try:
+                process_name = process.name()
+            except psutil.NoSuchProcess:
+                pass
+            else:
+                if process_name.lower() == 'railworks.exe':
+                    return True
+        return False
+
     def launch_macroworks_and_wait(self):
         print 'Launching MacroWorks...'
         os.startfile('C://Program Files (x86)//PI Engineering//MacroWorks 3.1//MacroWorks 3 Launch.exe')
-        time.sleep(5)
+        time.sleep(10)
 
     def launch_railworks(self):
         print 'Launching Railworks...'
         os.system('"C://Program Files (x86)//Steam//steamapps//common//RailWorks//RailWorks.exe" -SetFOV=75')
+        time.sleep(10)  # so that the process list can update
 
     def launch_tracking_and_wait(self):
         print 'Launching FaceTrackNoIR'
         os.startfile('C://Program Files (x86)//FreeTrack//FaceTrackNoIR.exe')
-        time.sleep(10)
+        time.sleep(5)
 
     def main(self):
         try:
-            while True:
+            while self.is_railworks_running():
                 self.update_g13()
                 time.sleep(self.interval)
         except KeyboardInterrupt:
-            self.g13.lcd_shutdown()
+            self.shutdown()
+        else:
+            self.shutdown()
+
+    def shutdown(self):
+        print 'Shutting down because Railworks is done...'
+        self.g13.lcd_shutdown()
 
     def startup(self):
         self.launch_tracking_and_wait()
