@@ -36,6 +36,10 @@ class RailDriver(object):
         ret_str = self.dll.GetControllerList()
         return enumerate(ret_str.split('::'))
 
+    def get_controller_value(self, idx):
+        ret_float = self.dll.GetControllerValue(idx, 0)
+        return ret_float
+
     def get_current_time(self):
         # time is stored in controller values 406 to 408
         hms = [int(self.dll.GetControllerValue(i, 0)) for i in range(406, 409)]
