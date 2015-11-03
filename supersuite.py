@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import csv
 import os
 import time
 import winsound
@@ -43,9 +44,12 @@ class StateMachine(object):
     def __getitem__(self, item):
         return self.new.get(item)
 
+    def keys(self):
+        return self.new.keys()
+
     def update(self, new):
         self.old = self.new.copy()
-        self.new = new
+        self.new = new.copy()
 
 
 class Sound(object):
@@ -67,22 +71,20 @@ class Runner(object):
 
     g13 = None
     raildriver = None
-    raildriver_state_machine = None
+    state_machine = None
     state_machine_log = None
 
     def __init__(self):
         self.g13 = g13.LogitechLCD(g13.LCD_TYPE_MONO)
         self.raildriver = raildriver.RailDriver('C://Program Files (x86)//Steam//steamapps//common//RailWorks//plugins//RailDriver.dll')
-        self.raildriver_state_machine = StateMachine()
+        self.state_machine = StateMachine()
 
         self.display = Display(self.g13)
 
         self.startup()
 
     def close_state_machine_log(self):
-        if self.state_machine_log:
-            self.state_machine_log.close()
-            self.state_machine_log = None
+        self.state_machine_log = None
 
     def is_railworks_running(self):
         for process in psutil.process_iter():
@@ -117,12 +119,12 @@ class Runner(object):
             while self.is_railworks_running():
                 loop += 1
                 self.update_g13()
-                if not loop % 10:  # more intensive operations should be done only every 10 loops
-                    self.update_state_machine()
 
-                    if '!LocoName' in self.raildriver_state_machine.changed_keys:
+                if not loop % 10:  # more intensive operations should be done only every 10 loops
+                    if '!LocoName' in self.state_machine.changed_keys:
                         self.open_state_machine_log()
                         Sound.beep_rise()
+                    self.update_state_machine()
 
                 time.sleep(self.interval)
         except KeyboardInterrupt:
@@ -131,9 +133,11 @@ class Runner(object):
             self.shutdown()
 
     def open_state_machine_log(self):
-        if self.state_machine_log:
-            self.close_state_machine_log()
-        self.state_machine_log = open('state_machine_{}.log'.format(time.time()), 'a')
+        safe_loconame = ''.join([c for c in self.raildriver.get_loco_name()[2] if c.isalpha() or c.isdigit()])
+        filename = 'logs/state_machine_{}_{}.csv'.format(int(time.time()), safe_loconame)
+        fieldnames = sorted(set(self.state_machine.keys() + ['!Time']))
+        self.state_machine_log = csv.DictWriter(open(filename, 'wb'), fieldnames=fieldnames)
+        self.state_machine_log.writeheader()
 
     def shutdown(self):
         print 'Shutting down because Railworks is done...'
@@ -141,8 +145,8 @@ class Runner(object):
         self.close_state_machine_log()
 
     def startup(self):
-        self.launch_tracking_and_wait()
-        self.launch_macroworks_and_wait()
+        # self.launch_tracking_and_wait()
+        # self.launch_macroworks_and_wait()
         self.launch_railworks()
         self.g13.lcd_init()
 
@@ -160,9 +164,16 @@ class Runner(object):
     def update_state_machine(self):
         new_sm = {name: self.raildriver.get_controller_value(idx) for idx, name in self.raildriver.get_controller_list()}
         new_sm['!LocoName'] = self.raildriver.get_loco_name()[2] if self.raildriver.get_loco_name() else None
-        self.raildriver_state_machine.update(new_sm)
+        self.state_machine.update(new_sm)
         if self.state_machine_log:
-            self.state_machine_log.writelines(['{}: {}\n'.format(k, v) for k, v in new_sm.items()])
+            del new_sm['!LocoName']
+            new_sm['!Time'] = '{0:%H:%M:%S}'.format(self.raildriver.get_current_time())
+
+            # @TODO: fix this properly
+            try:
+                self.state_machine_log.writerow(self.state_machine.new)
+            except ValueError:
+                self.open_state_machine_log()
 
 
 if __name__ == '__main__':
