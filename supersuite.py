@@ -6,9 +6,9 @@ import time
 import winsound
 
 import psutil
+import raildriver
 
 import g13
-import raildriver
 
 
 class Display(object):
@@ -76,7 +76,7 @@ class Runner(object):
 
     def __init__(self):
         self.g13 = g13.LogitechLCD(g13.LCD_TYPE_MONO)
-        self.raildriver = raildriver.RailDriver('C://Program Files (x86)//Steam//steamapps//common//RailWorks//plugins//RailDriver.dll')
+        self.raildriver = raildriver.RailDriver()
         self.state_machine = StateMachine()
 
         self.display = Display(self.g13)
@@ -97,10 +97,14 @@ class Runner(object):
                     return True
         return False
 
+    def launch_dsd(self):
+        print 'Launching railworks-dsd...'
+        os.startfile('C://Users//Piotr//OpenSource//railworks-dsd//venv//Scripts//railworksdsd.exe')
+
     def launch_macroworks_and_wait(self):
         print 'Launching MacroWorks...'
         os.startfile('C://Program Files (x86)//PI Engineering//MacroWorks 3.1//MacroWorks 3 Launch.exe')
-        time.sleep(10)
+        time.sleep(15)
 
     def launch_railworks(self):
         print 'Launching Railworks...'
@@ -108,7 +112,7 @@ class Runner(object):
         time.sleep(10)  # so that the process list can update
 
     def launch_tracking_and_wait(self):
-        print 'Launching FaceTrackNoIR'
+        print 'Launching FaceTrackNoIR...'
         os.startfile('C://Program Files (x86)//FreeTrack//FaceTrackNoIR.exe')
         time.sleep(5)
 
@@ -143,11 +147,24 @@ class Runner(object):
         print 'Shutting down because Railworks is done...'
         self.g13.lcd_shutdown()
         self.close_state_machine_log()
+        self.shutdown_dsd()
+
+    def shutdown_dsd(self):
+        print 'Shutting down railworks-dsd...'
+        for process in psutil.process_iter():
+            try:
+                process_name = process.name()
+            except psutil.NoSuchProcess:
+                pass
+            else:
+                if process_name.lower() == 'railworksdsd.exe':
+                    process.kill()
 
     def startup(self):
-        # self.launch_tracking_and_wait()
-        # self.launch_macroworks_and_wait()
+        self.launch_tracking_and_wait()
+        self.launch_macroworks_and_wait()
         self.launch_railworks()
+        self.launch_dsd()
         self.g13.lcd_init()
 
     def update_g13(self):
@@ -162,7 +179,7 @@ class Runner(object):
         self.display.update(context)
 
     def update_state_machine(self):
-        new_sm = {name: self.raildriver.get_controller_value(idx) for idx, name in self.raildriver.get_controller_list()}
+        new_sm = {name: self.raildriver.get_current_controller_value(idx) for idx, name in self.raildriver.get_controller_list()}
         new_sm['!LocoName'] = self.raildriver.get_loco_name()[2] if self.raildriver.get_loco_name() else None
         self.state_machine.update(new_sm)
         if self.state_machine_log:
