@@ -1,11 +1,13 @@
 #!/usr/bin/env python
 
 import csv
+import datetime
 import os
 import time
 import winsound
 
 import psutil
+import pywinusb.hid
 import raildriver
 
 import g13
@@ -74,6 +76,9 @@ class Runner(object):
     state_machine = None
     state_machine_log = None
 
+    input_check_iterations = 0
+    input_check_started = None
+
     def __init__(self):
         self.g13 = g13.LogitechLCD(g13.LCD_TYPE_MONO)
         self.raildriver = raildriver.RailDriver()
@@ -97,9 +102,35 @@ class Runner(object):
                     return True
         return False
 
+    def launch_dispatcher(self):
+        print 'Generating work order...'
+        os.chdir('C://Program Files (x86)//Steam//steamapps//common//RailWorks')
+        os.startfile('C://Users//Piotr//OpenSource//railworks-dispatcher//venv//Scripts//python.exe C://Users//Piotr//OpenSource//railworks-dispatcher//dispatcher.py 1')
+        time.sleep(15)
+
     def launch_dsd(self):
         print 'Launching railworks-dsd...'
         os.startfile('C://Users//Piotr//OpenSource//railworks-dsd//venv//Scripts//railworksdsd.exe')
+
+    def launch_input_check(self):
+        print 'Doing an input check on the DSD...'
+        usb = pywinusb.hid.HidDeviceFilter(product_id=0x00ff, vendor_id=0x05f3).get_devices()[0]
+        usb.open()
+
+        def handler(data):
+            self.input_check_iterations += 1
+            print self.input_check_iterations, data
+
+        usb.set_raw_data_handler(handler)
+        self.input_check_started = datetime.datetime.now()
+
+        while self.input_check_iterations < 10:
+            if (datetime.datetime.now() - self.input_check_started).total_seconds() > 10:
+                input('Not enough input received within 10 seconds. Quitting...')
+                raise RuntimeError('Not enough input received within 10 seconds')
+            time.sleep(.5)
+
+        print 'Input check OK ({})'.format(self.input_check_iterations)
 
     def launch_macroworks_and_wait(self):
         print 'Launching MacroWorks...'
@@ -108,7 +139,8 @@ class Runner(object):
 
     def launch_railworks(self):
         print 'Launching Railworks...'
-        os.system('"C://Program Files (x86)//Steam//steamapps//common//RailWorks//RailWorks.exe" -SetFOV=75')
+        # os.system('"C://Program Files (x86)//Steam//steamapps//common//RailWorks//RailWorks.exe" -SetFOV=75')
+        os.system('"C://Program Files (x86)//Steam//steamapps//common//RailWorks//RailWorks.exe"')
         time.sleep(10)  # so that the process list can update
 
     def launch_tracking_and_wait(self):
@@ -161,10 +193,12 @@ class Runner(object):
                     process.kill()
 
     def startup(self):
+        self.launch_input_check()
+        self.launch_dsd()
         self.launch_tracking_and_wait()
+        # self.launch_dispatcher()
         self.launch_macroworks_and_wait()
         self.launch_railworks()
-        self.launch_dsd()
         self.g13.lcd_init()
 
     def update_g13(self):
